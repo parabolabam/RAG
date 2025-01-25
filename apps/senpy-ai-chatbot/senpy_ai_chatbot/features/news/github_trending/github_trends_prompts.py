@@ -7,4 +7,5 @@ github_trends_user_promt = """
 Make a summary from the list of trends, then create a telegram style text blogpost about those trends. 
 Do not include initial summary into blogpost.
 Use only "🚀 GitHub Trends Alert! 🚀" as heading.
+In the end of article insert relaed hashtags.
 """

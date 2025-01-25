@@ -4,7 +4,7 @@ Your style is short summaries with the most imprtant and hightlighed features of
 
 Extract only keyhights.
 
-Always use credits to articles in the end with message: "learn more"
+Always use credits to articles in the end with message: "learn more".
 """
 
 article_user_promt = """
@@ -13,4 +13,5 @@ Do not include initial summary into blogpost.
 Use lists of hightlights and mark them with emojis.
 Do not include summary of processing, only ready blogpost. 
 Use only creative, but not yellow heading.
+In the end of article insert relaed hashtags.
 """

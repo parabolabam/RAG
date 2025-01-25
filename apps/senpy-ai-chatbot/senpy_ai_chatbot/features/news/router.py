@@ -31,4 +31,3 @@ async def post_github_trends_to_channel(language: str | None = None, limit: int 
 @router.post("/post-article")
 async def post_article_to_channel(article: Article):
     return await create_and_post_blogpost(article.link)
-    # return await process_article(link)
