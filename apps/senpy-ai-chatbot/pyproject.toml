@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "senpy-ai-chatbot"
+version = "0.1.0"
+description = ""
+authors = ["parabolabam <sorokinvladislav1402@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+telethon = "^1.38.1"
+apscheduler = "^3.11.0"
+requests = "^2.32.3"
+bs4 = "^0.0.2"
+openai = "^1.60.0"
+fastapi = "^0.115.7"
+uvicorn = "^0.34.0"
+python-dotenv = "^1.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

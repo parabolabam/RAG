@@ -1,0 +1,3 @@
+- [ ] Find sources with parseable news headers
+- [ ] feed them to openai aggregator with correct prompts
+- [ ] send beautiful telegram posts from AI generated content
