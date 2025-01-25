@@ -18,7 +18,6 @@ ENV VIRTUAL_ENV=/app/.venv \
   PATH="/app/.venv/bin:$PATH"
 # Install dependencies
 RUN poetry install --no-dev
-RUN source .venv
 
 # Copy the rest of the code
 
