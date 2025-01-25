@@ -1,9 +1,10 @@
 from ..clients.telegram import get_client
 
-bot_token = "1207410875:AAFvIwYtKpIkkf1_TfbLyRs2CUpiPN_pG10"
 
-
-async def send_message_to_channel(channel: int):
+async def send_message_to_channel(channel: int, message: str):
     # Start the client
+    if not channel or not message:
+        raise Exception("Channel and message are required")
+
     client = await get_client()
-    await client.send_message(channel, "Hello!")
+    await client.send_message(channel, message)

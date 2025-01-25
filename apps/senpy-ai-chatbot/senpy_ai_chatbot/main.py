@@ -2,21 +2,21 @@ import uvicorn
 import os
 from fastapi import FastAPI
 from senpy_ai_chatbot.features.send_channel_message import send_message_to_channel
+from senpy_ai_chatbot.features.news.router import router as news_router
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = FastAPI(swagger_ui_parameters={"syntaxHighlight": False})
 
-
-@app.get("/news-report")
-def get_news_report():
-    return {"report": "yo"}
+app.include_router(news_router)
 
 
-@app.get("/send-message")
+@app.post("/send-message")
 async def send_test_message():
-    await send_message_to_channel(int(os.getenv("TELEGRAM_CHANNEL_ID") or -1))
+    await send_message_to_channel(
+        int(os.getenv("TELEGRAM_CHANNEL_ID") or -1), "Hello! 😛"
+    )
 
 
 if __name__ == "__main__":
