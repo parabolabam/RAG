@@ -8,6 +8,7 @@ from senpy_ai_chatbot.features.news.article_based_post.post_article import (
 from senpy_ai_chatbot.features.news.github_trending.post_github_trends import (
     post_github_trends,
 )
+from senpy_ai_chatbot.features.news.rss.feed_parser import parse_feeds
 from .github_trending.github_trends_searcher import (
     fetch_github_trending,
 )
@@ -31,3 +32,8 @@ async def post_github_trends_to_channel(language: str | None = None, limit: int 
 @router.post("/post-article")
 async def post_article_to_channel(article: Article):
     return await create_and_post_blogpost(article.link)
+
+
+@router.post("/parse-feeds")
+async def post_feeds():
+    return await parse_feeds()

@@ -12,7 +12,7 @@ class AiNewsClient:
 
     async def process_news(self, system_prompt: str, user_prompt: str, data: str):
         return await self.async_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             temperature=0.5,
             messages=[
                 {"role": "system", "content": system_prompt},

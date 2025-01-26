@@ -1,4 +1,4 @@
-news_resources = [
+RSS_FEEDS = [
     "https://dev.to",
     "https://news.ycombinator.com",
     "https://techcrunch.com",
