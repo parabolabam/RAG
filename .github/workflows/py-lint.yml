@@ -1,0 +1,30 @@
+name: Lint Python Code
+
+on:
+  push:
+    paths:
+      - "apps/senpy-ai-chatbot/**"
+  pull_request:
+    paths:
+      - "apps/senpy-ai-chatbot/**"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint
+
+      - name: Run pylint
+        run: python3 -m pylint --fail-under=9.5 $(find . -name "**/apps/senpy-ai-chatbot/*.py" -not -path "**/tests/*")
