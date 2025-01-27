@@ -22,5 +22,5 @@ RUN poetry install --no-dev
 # Copy the rest of the code
 
 # Command to run the application
-ENTRYPOINT ["uvicorn", "senpy_ai_chatbot.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["uvicorn", "senpy_ai_news_report.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
