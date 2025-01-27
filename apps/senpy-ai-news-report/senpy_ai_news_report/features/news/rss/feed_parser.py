@@ -5,9 +5,9 @@ import time
 
 from telethon.client.downloads import aiohttp
 
-from senpy_ai_chatbot.features.ai.openai_client import AiNewsClient
-from senpy_ai_chatbot.features.news.rss.rss_feeds import RSS_FEEDS
-from senpy_ai_chatbot.features.telegram_integration_features.send_channel_message import (
+from senpy_ai_news_report.features.ai.openai_client import AiNewsClient
+from senpy_ai_news_report.features.news.rss.rss_feeds import RSS_FEEDS
+from senpy_ai_news_report.features.telegram_integration_features.send_channel_message import (
     send_message_to_channel,
 )
 from .rss_prompts import rss_system_promt, rss_user_promt

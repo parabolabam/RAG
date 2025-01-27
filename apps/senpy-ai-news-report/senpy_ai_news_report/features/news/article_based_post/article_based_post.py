@@ -1,4 +1,4 @@
-from senpy_ai_chatbot.features.ai.openai_client import AiNewsClient
+from senpy_ai_news_report.features.ai.openai_client import AiNewsClient
 from .article_prompts import (
     article_system_promt,
     article_user_promt,

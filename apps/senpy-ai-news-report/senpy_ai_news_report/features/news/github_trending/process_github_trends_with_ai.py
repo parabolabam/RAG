@@ -3,7 +3,7 @@ from typing import List
 
 from dataclasses import dataclass
 
-from senpy_ai_chatbot.features.ai.openai_client import AiNewsClient
+from senpy_ai_news_report.features.ai.openai_client import AiNewsClient
 from .github_trends_searcher import GithubTrending, fetch_github_trending
 from .github_trends_prompts import github_trends_system_promt, github_trends_user_promt
 

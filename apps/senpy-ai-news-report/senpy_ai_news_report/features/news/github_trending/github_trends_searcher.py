@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
-from senpy_ai_chatbot.utils import fetch_text
-from senpy_ai_chatbot.utils.serializable_dataclass import SerilizableDataclass
+from senpy_ai_news_report.utils import fetch_text
+from senpy_ai_news_report.utils.serializable_dataclass import SerilizableDataclass
 
 
 class GithubTrending(SerilizableDataclass):
