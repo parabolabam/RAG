@@ -27,4 +27,4 @@ jobs:
           pip install pylint
 
       - name: Run pylint
-        run: python3 -m pylint --fail-under=9.5 $(find . -name "**/apps/senpy-ai-chatbot/*.py" -not -path "**/tests/*")
+        run: python3 -m pylint --fail-under=9.5 $(find . -name "*.py" -not -path "**/tests/*")
