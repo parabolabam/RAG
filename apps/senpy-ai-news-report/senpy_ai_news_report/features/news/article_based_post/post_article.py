@@ -10,4 +10,4 @@ async def create_and_post_blogpost(
     link: str,
 ):
     processed_article = await process_article(link)
-    return await send_message_to_channel(processed_article)
+    return await send_message_to_channel(processed_article, None)
