@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 from senpy_ai_chatbot.features.news.github_trending.process_github_trends_with_ai import (
     process_github_trends,
 )
@@ -7,10 +6,9 @@ from senpy_ai_chatbot.features.telegram_integration_features.send_channel_messag
 )
 
 
-load_dotenv()
-
-
-async def post_github_trends(language: str | None, limit: int):
+async def post_github_trends(
+    language: str | None, limit: int, telegram_channel_id: int | None
+):
     processed_trends = await process_github_trends(language, limit)
-    await send_message_to_channel(processed_trends)
+    await send_message_to_channel(processed_trends, telegram_channel_id)
     return processed_trends

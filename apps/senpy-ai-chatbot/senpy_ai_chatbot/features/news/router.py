@@ -24,9 +24,11 @@ async def fetch_github_trends(language: str | None = None, limit: int = 10):
     return await fetch_github_trending(language, limit)
 
 
-@router.post("/github-trends")
-async def post_github_trends_to_channel(language: str | None = None, limit: int = 10):
-    return await post_github_trends(language, limit)
+@router.post("/post-github-trends-to-telegram-channel")
+async def post_github_trends_to_channel(
+    language: str | None = None, limit: int = 10, telegram_channel_id: int | None = None
+):
+    return await post_github_trends(language, limit, telegram_channel_id)
 
 
 @router.post("/post-article")
