@@ -93,7 +93,7 @@ class AiNewsClient:
             
             # Poll for completion
             while batch_job.status in ["validating", "in_progress", "finalizing"]:
-                await asyncio.sleep(2)  # Wait 5 seconds before checking again
+                await asyncio.sleep(2)  # Wait 2 seconds before checking again
                 batch_job = await self.async_client.batches.retrieve(batch_job.id)
                 print(f"Batch status: {batch_job.status}")
             
