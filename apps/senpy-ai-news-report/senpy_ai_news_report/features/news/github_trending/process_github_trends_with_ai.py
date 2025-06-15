@@ -27,7 +27,8 @@ async def process_trends_with_ai(trends: list[GithubTrending]):
     """
 
     return await AiNewsClient().process_news(
-        github_trends_system_promt, github_trends_user_promt, json.dumps(trends)
+        github_trends_system_promt, github_trends_user_promt, json.dumps(trends),
+        model="gpt-4.1-mini"
     )
 
 

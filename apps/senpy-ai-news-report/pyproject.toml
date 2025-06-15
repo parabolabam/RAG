@@ -6,7 +6,7 @@ authors = ["parabolabam <sorokinvladislav1402@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "3.13.2"
 telethon = "^1.38.1"
 apscheduler = "^3.11.0"
 requests = "^2.32.3"
@@ -19,6 +19,7 @@ aiohttp = "^3.11.11"
 debugpy = "^1.8.12"
 pydantic = "^2.10.6"
 feedparser = "^6.0.11"
+pytest = "^8.3.5"
 
 
 [build-system]
