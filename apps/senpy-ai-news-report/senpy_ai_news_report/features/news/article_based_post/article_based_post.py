@@ -14,6 +14,7 @@ async def process_article_with_ai(link: str):
         system_prompt=article_system_promt,
         user_prompt=article_user_promt,
         data=f"here is the article link: {link}",
+        model="gpt-4o-mini",
     )
 
 

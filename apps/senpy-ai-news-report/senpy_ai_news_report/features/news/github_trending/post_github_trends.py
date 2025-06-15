@@ -12,3 +12,6 @@ async def post_github_trends(
     processed_trends = await process_github_trends(language, limit)
     await send_message_to_channel(processed_trends, telegram_channel_id)
     return processed_trends
+
+
+
