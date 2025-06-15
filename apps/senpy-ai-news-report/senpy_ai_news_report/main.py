@@ -15,11 +15,6 @@ app = FastAPI(swagger_ui_parameters={"syntaxHighlight": False})
 
 app.include_router(news_router)
 
-
-def printArg(arg):
-    print(arg)
-
-
 if __name__ == "__main__":
     # Run the FastAPI server
     uvicorn.run(
