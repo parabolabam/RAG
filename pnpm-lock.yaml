@@ -34,8 +34,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.1(@types/react-dom@19.0.3(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@19.0.0(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-slot':
-        specifier: ^1.1.0
-        version: 1.1.1(@types/react@18.3.18)(react@18.3.1)
+        specifier: ^1.2.3
+        version: 1.2.3(@types/react@18.3.18)(react@18.3.1)
       '@t3-oss/env-nextjs':
         specifier: ^0.10.1
         version: 0.10.1(typescript@5.5.4)(zod@3.24.1)
@@ -142,7 +142,7 @@ importers:
         version: 49.0.23(@babel/core@7.26.10)
       expo-status-bar:
         specifier: ~2.0.1
-        version: 2.0.1(react-native@0.73.1(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(react@18.3.1))(react@18.3.1)
+        version: 2.0.1(react-native@0.73.1(@babel/core@7.26.10)(@babel/preset-env@7.26.0(@babel/core@7.26.10))(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -1987,6 +1987,15 @@ packages:
       '@types/react':
         optional: true
 
+  '@radix-ui/react-compose-refs@1.1.2':
+    resolution: {integrity: sha512-z4eqJvfiNnFMHIIvXP3CY57y2WJs5g2v3X0zm9mEJkrkNv4rDxu+sg9Jh8EkXyeqBkB7SOcboo9dMVqhyrACIg==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
   '@radix-ui/react-context@1.1.1':
     resolution: {integrity: sha512-UASk9zi+crv9WteK/NU4PLvOoL3OuE6BWVKNF6hPRBtYBDXQ2u5iu3O59zUlJiTVvkyuycnqrztsHVJwcK9K+Q==}
     peerDependencies:
@@ -2155,6 +2164,15 @@ packages:
 
   '@radix-ui/react-slot@1.1.1':
     resolution: {integrity: sha512-RApLLOcINYJA+dMVbOju7MYv1Mb2EBp2nH4HdDzXTSyaR5optlm6Otrz1euW3HbdOR8UmmFK06TD+A9frYWv+g==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@radix-ui/react-slot@1.2.3':
+    resolution: {integrity: sha512-aeNmHnBxbi2St0au6VBVC7JXFlhLlOnvIIlePNniyUNAClzmtAUEY8/pBiK3iHjufOlwA+c20/8jngo7xcrg8A==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
@@ -9384,6 +9402,12 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.3.18
 
+  '@radix-ui/react-compose-refs@1.1.2(@types/react@18.3.18)(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+    optionalDependencies:
+      '@types/react': 18.3.18
+
   '@radix-ui/react-context@1.1.1(@types/react@18.3.18)(react@18.3.1)':
     dependencies:
       react: 18.3.1
@@ -9550,6 +9574,13 @@ snapshots:
   '@radix-ui/react-slot@1.1.1(@types/react@18.3.18)(react@18.3.1)':
     dependencies:
       '@radix-ui/react-compose-refs': 1.1.1(@types/react@18.3.18)(react@18.3.1)
+      react: 18.3.1
+    optionalDependencies:
+      '@types/react': 18.3.18
+
+  '@radix-ui/react-slot@1.2.3(@types/react@18.3.18)(react@18.3.1)':
+    dependencies:
+      '@radix-ui/react-compose-refs': 1.1.2(@types/react@18.3.18)(react@18.3.1)
       react: 18.3.1
     optionalDependencies:
       '@types/react': 18.3.18
@@ -11896,10 +11927,10 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  expo-status-bar@2.0.1(react-native@0.73.1(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(react@18.3.1))(react@18.3.1):
+  expo-status-bar@2.0.1(react-native@0.73.1(@babel/core@7.26.10)(@babel/preset-env@7.26.0(@babel/core@7.26.10))(react@18.3.1))(react@18.3.1):
     dependencies:
       react: 18.3.1
-      react-native: 0.73.1(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(react@18.3.1)
+      react-native: 0.73.1(@babel/core@7.26.10)(@babel/preset-env@7.26.0(@babel/core@7.26.10))(react@18.3.1)
 
   expo@49.0.23(@babel/core@7.26.10):
     dependencies:
