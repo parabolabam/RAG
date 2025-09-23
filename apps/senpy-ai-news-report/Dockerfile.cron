@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.13.2-alpine
 
 # Set working directory
 WORKDIR /app
@@ -22,5 +22,5 @@ RUN poetry install --no-dev
 # Copy the rest of the code
 
 # Command to run the application
-ENTRYPOINT ["poetry", "run", "python", "-m", "crons"]
+
 
