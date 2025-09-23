@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  cron-github:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    command: ["poetry", "run", "python", "-m", "crons.github_trends_cron"]
+    env_file:
+      - .env
+
+  cron-feeds:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    command: ["poetry", "run", "python", "-m", "crons.feeds_cron"]
+    env_file:
+      - .env
