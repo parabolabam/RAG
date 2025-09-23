@@ -38,7 +38,7 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -euo pipefail
-          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
+          IMAGE_SHA="${IMAGE_REPO}/${IMAGE_TAG}"
           IMAGE_LATEST="${IMAGE_REPO}:latest"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
