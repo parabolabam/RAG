@@ -18,9 +18,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-async def process_rss_with_ai(rss_entries, model: str | None = None):
-    if model is None:
-        model = "gpt-4o-mini"
 
 async def process_rss_with_ai(rss_entries, model: str | None = None):
     if model is None:
