@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "apps/senpy-ai-news-report/**"
+  workflow_dispatch:
 
 env:
   PROJECT_DIR: apps/senpy-ai-news-report
