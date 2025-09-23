@@ -43,7 +43,7 @@ jobs:
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
           docker tag "${IMAGE_SHA}" "${IMAGE_LATEST}"
-          docker push "${IMAGE_REPO}/${IMAGE_SHA}"
+          docker push "${IMAGE_SHA}"
 
       - name: Deploy on remote host
         uses: appleboy/ssh-action@v1.0.3
