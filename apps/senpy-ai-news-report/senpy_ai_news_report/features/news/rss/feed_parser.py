@@ -14,11 +14,10 @@ from senpy_ai_news_report.features.telegram_integration_features.send_channel_me
 )
 from .rss_prompts import rss_system_promt, rss_user_promt
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-async def process_rss_with_ai(rss_entries, model: str | None = None):
-    if model is None:
-        model = "gpt-4o-mini"
 
 async def process_rss_with_ai(rss_entries, model: str | None = None):
     if model is None:
@@ -103,7 +102,9 @@ def check_feed_updated(feed, last_run_date):
             time.mktime(feed.feed.updated_parsed)
         )
         is_updated = feed_updated_date > last_run_date
-        logging.info(f"Feed updated status: {is_updated} for feed updated at {feed_updated_date}")
+        logging.info(
+            f"Feed updated status: {is_updated} for feed updated at {feed_updated_date}"
+        )
         return is_updated, feed_updated_date
     logging.info("Feed does not have 'updated_parsed' field.")
     return False, None
@@ -118,12 +119,12 @@ async def parse_feeds():
     # Extract data from feed results
     feed_data_list = []
     for feed_entry in feed_results[:1]:  # Process first feed for now
-            url, data = feed_entry
-            if data:  # Make sure data is not None
-                print(data.entries[:5])
-                feed_data_list.append(
-                    data.entries[:5]
-                )  # Limit to first 5 entries for batch processing
+        url, data = feed_entry
+        if data:  # Make sure data is not None
+            print(data.entries[:5])
+            feed_data_list.append(
+                data.entries[:5]
+            )  # Limit to first 5 entries for batch processing
 
     if feed_data_list:
         # Process all feeds in batch
@@ -137,7 +138,6 @@ async def parse_feeds():
         return []
 
 
-
 async def post_feeds(
     feed_results,
 ):
@@ -148,13 +148,12 @@ async def post_feeds(
         telegram_channel_id: Telegram channel ID to send messages to
     """
 
-
     for result in feed_results:
         response = result["response"]
         body = response["body"]
         choices = body["choices"][0]
         content = choices["message"]["content"]
         if content is not None:
-           await send_message_to_channel(message=content, telegram_channel_id=None)
+            await send_message_to_channel(message=content, telegram_channel_id=None)
 
     return feed_results
