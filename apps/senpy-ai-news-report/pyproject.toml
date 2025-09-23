@@ -4,10 +4,11 @@ version = "0.1.0"
 description = ""
 authors = ["parabolabam <sorokinvladislav1402@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
-python = "3.13.2"
-telethon = "^1.41.2"
+python = "3.13.7"
+telethon = "^1.38.1"
 apscheduler = "^3.11.0"
 requests = "^2.32.3"
 bs4 = "^0.0.2"

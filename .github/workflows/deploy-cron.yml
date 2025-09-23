@@ -1,0 +1,104 @@
+name: Deploy Cron & API Stack
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/senpy-ai-news-report/**"
+  workflow_dispatch:
+
+env:
+  PROJECT_DIR: apps/senpy-ai-news-report
+  REGISTRY_HOST: registry.digitalocean.com
+  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_REPO: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate with DigitalOcean
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_API_TOKEN }}
+
+      - name: Log in to DigitalOcean registry
+        run: doctl registry login --expiry-seconds 600
+
+      - name: Build and push container images
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
+          IMAGE_LATEST="${IMAGE_REPO}:latest"
+
+          docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
+          docker tag "${IMAGE_SHA}" "${IMAGE_LATEST}"
+          docker push "${IMAGE_SHA}"
+          docker push "${IMAGE_LATEST}"
+
+      - name: Deploy on remote host
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_REPO: ${{ env.IMAGE_REPO }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          REGISTRY_HOST: ${{ env.REGISTRY_HOST }}
+          DO_REGISTRY_USERNAME: ${{ secrets.DO_REGISTRY_USERNAME }}
+          DO_REGISTRY_PASSWORD: ${{ secrets.DO_API_TOKEN }}
+        with:
+          host: ${{ secrets.CRON_DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.CRON_DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
+
+            if [ ! -d "$TARGET_DIR" ]; then
+              echo "Target directory $TARGET_DIR does not exist on remote host." >&2
+              exit 1
+            fi
+
+            if [ -n "${DO_REGISTRY_USERNAME:-}" ] && [ -n "${DO_REGISTRY_PASSWORD:-}" ]; then
+              echo "$DO_REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$DO_REGISTRY_USERNAME" --password-stdin
+            fi
+
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE="docker compose"
+            elif docker-compose version >/dev/null 2>&1; then
+              COMPOSE="docker-compose"
+            else
+              echo 'Docker Compose not found on remote host.' >&2
+              exit 1
+            fi
+
+            IMAGE_REF="$IMAGE_REPO:$IMAGE_TAG"
+            if ! docker pull "$IMAGE_REF"; then
+              echo "Falling back to latest image tag" >&2
+              docker pull "$IMAGE_REPO:latest"
+              IMAGE_TAG_VALUE="latest"
+            else
+              IMAGE_TAG_VALUE="$IMAGE_TAG"
+            fi
+
+            cd "$TARGET_DIR"
+
+            if [ ! -f .env ]; then
+              echo 'Warning: .env file not found on remote host; containers may fail to start.' >&2
+            fi
+
+            if [ ! -f docker-compose.yml ]; then
+              echo 'Warning: docker-compose.yml not found in target directory; nothing to deploy.' >&2
+              exit 1
+            fi
+
+            IMAGE_REPO="$IMAGE_REPO" IMAGE_TAG="$IMAGE_TAG_VALUE" $COMPOSE up -d --remove-orphans cron-github cron-feeds api
