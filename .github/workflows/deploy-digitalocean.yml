@@ -1,0 +1,192 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Application to deploy'
+        required: true
+        default: 'senpy-ai-news-report'
+        type: choice
+        options:
+        - senpy-ai-news-report
+        - ai-chatbot
+        - web
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  REGISTRY: registry.digitalocean.com
+  REGISTRY_NAME: ${{ secrets.DO_REGISTRY_NAME }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment variables
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "APP_NAME=${{ github.event.inputs.app }}" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+          else
+            echo "APP_NAME=senpy-ai-news-report" >> $GITHUB_ENV
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "DEPLOY_ENV=staging" >> $GITHUB_ENV
+            elif [ "${{ github.ref }}" = "refs/heads/production" ]; then
+              echo "DEPLOY_ENV=production" >> $GITHUB_ENV
+            else
+              echo "DEPLOY_ENV=staging" >> $GITHUB_ENV
+            fi
+          fi
+          echo "IMAGE_NAME=${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${APP_NAME}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${GITHUB_SHA::8}" >> $GITHUB_ENV
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          if [ "${{ env.APP_NAME }}" = "senpy-ai-news-report" ]; then
+            cd apps/senpy-ai-news-report
+            docker build -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+            docker tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} ${{ env.IMAGE_NAME }}:latest
+          elif [ "${{ env.APP_NAME }}" = "ai-chatbot" ]; then
+            cd apps/ai-chatbot
+            # Create Dockerfile for ai-chatbot if it doesn't exist
+            if [ ! -f Dockerfile ]; then
+              cat > Dockerfile << EOF
+          FROM node:18-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --only=production
+          COPY . .
+          RUN npm run build
+          EXPOSE 3000
+          CMD ["npm", "start"]
+          EOF
+            fi
+            docker build -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+            docker tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} ${{ env.IMAGE_NAME }}:latest
+          elif [ "${{ env.APP_NAME }}" = "web" ]; then
+            cd apps/web
+            # Create Dockerfile for web if it doesn't exist
+            if [ ! -f Dockerfile ]; then
+              cat > Dockerfile << EOF
+          FROM node:18-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --only=production
+          COPY . .
+          RUN npm run build
+          EXPOSE 3000
+          CMD ["npm", "start"]
+          EOF
+            fi
+            docker build -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+            docker tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} ${{ env.IMAGE_NAME }}:latest
+          fi
+
+      - name: Log in to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Push image to DigitalOcean Container Registry
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+      - name: Deploy to Digital Ocean App Platform
+        if: secrets.DO_APP_ID
+        run: |
+          # Create app spec
+          cat > app-spec.yaml << EOF
+          name: ${{ env.APP_NAME }}-${{ env.DEPLOY_ENV }}
+          services:
+          - name: ${{ env.APP_NAME }}
+            image:
+              registry_type: DOCR
+              repository: ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}
+              tag: ${{ env.IMAGE_TAG }}
+            instance_count: 1
+            instance_size_slug: basic-xxs
+            http_port: ${{ env.APP_NAME == 'senpy-ai-news-report' && '8000' || '3000' }}
+            routes:
+            - path: /
+            health_check:
+              http_path: ${{ env.APP_NAME == 'senpy-ai-news-report' && '/docs' || '/' }}
+            envs:
+            - key: NODE_ENV
+              value: production
+              scope: RUN_TIME
+            - key: DATABASE_URL
+              value: ${{ secrets.DATABASE_URL }}
+              scope: RUN_TIME
+              type: SECRET
+            - key: OPENAI_API_KEY
+              value: ${{ secrets.OPENAI_API_KEY }}
+              scope: RUN_TIME
+              type: SECRET
+          EOF
+          
+          # Deploy using app spec
+          doctl apps create --spec app-spec.yaml --wait || \
+          doctl apps update ${{ secrets.DO_APP_ID }} --spec app-spec.yaml --wait
+
+      - name: Deploy to Digital Ocean Droplet via SSH
+        if: secrets.DO_DROPLET_HOST && !secrets.DO_APP_ID
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_DROPLET_HOST }}
+          username: ${{ secrets.DO_DROPLET_USER }}
+          key: ${{ secrets.DO_DROPLET_SSH_KEY }}
+          script: |
+            # Login to registry on droplet
+            echo "${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} --password-stdin
+            
+            # Pull new image
+            docker pull ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            
+            # Stop and remove old container
+            docker stop ${{ env.APP_NAME }}-${{ env.DEPLOY_ENV }} || true
+            docker rm ${{ env.APP_NAME }}-${{ env.DEPLOY_ENV }} || true
+            
+            # Run new container
+            docker run -d \
+              --name ${{ env.APP_NAME }}-${{ env.DEPLOY_ENV }} \
+              --restart unless-stopped \
+              -p ${{ env.APP_NAME == 'senpy-ai-news-report' && '8000:8000' || '3000:3000' }} \
+              -e NODE_ENV=production \
+              -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+              -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+              ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            
+            # Clean up old images
+            docker image prune -f
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application**: ${{ env.APP_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ env.DEPLOY_ENV }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}" >> $GITHUB_STEP_SUMMARY
+          if [ ! -z "${{ secrets.DO_APP_ID }}" ]; then
+            echo "- **Deployment Method**: Digital Ocean App Platform" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Deployment Method**: Digital Ocean Droplet" >> $GITHUB_STEP_SUMMARY
+          fi
