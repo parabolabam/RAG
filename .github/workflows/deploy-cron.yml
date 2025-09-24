@@ -32,6 +32,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build and push container image
+        id: build_image
         working-directory: ${{ env.PROJECT_DIR }}
         env:
           IMAGE_TAG: ${{ github.sha }}
@@ -50,14 +51,14 @@ jobs:
           docker push "${IMAGE_SHA}"
           docker push "${IMAGE_LATEST}"
 
-          echo "IMAGE_REPO=${IMAGE_REPO}" >> "$GITHUB_ENV"
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+          printf 'image_repo=%s\n' "${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
+          printf 'image_tag=%s\n' "${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy API on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_REPO: ${{ env.IMAGE_REPO }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          IMAGE_REPO: ${{ steps.build_image.outputs.image_repo }}
+          IMAGE_TAG: ${{ steps.build_image.outputs.image_tag }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           API_HOST_PORT: ${{ secrets.API_HOST_PORT }}
@@ -74,10 +75,16 @@ jobs:
           script: |
             set -euo pipefail
 
-            IMAGE_REPO_VALUE="${IMAGE_REPO:-}"; IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
+            if ! command -v docker >/dev/null 2>&1; then
+              echo 'Docker binary not found on remote host.' >&2
+              exit 1
+            fi
+
+            IMAGE_REPO_VALUE="${IMAGE_REPO:-}"
+            IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
 
             if [ -z "${IMAGE_REPO_VALUE}" ]; then
-              echo "IMAGE_REPO missing from environment." >&2
+              echo 'IMAGE_REPO missing from environment.' >&2
               exit 1
             fi
 
@@ -91,20 +98,27 @@ jobs:
 
             if ! docker pull "${IMAGE_REF}"; then
               echo "Falling back to latest image tag" >&2
-              docker pull "${IMAGE_REPO_VALUE}:latest"
+              if ! docker pull "${IMAGE_REPO_VALUE}:latest"; then
+                echo 'Unable to pull image from GHCR.' >&2
+                exit 1
+              fi
               IMAGE_REF="${IMAGE_REPO_VALUE}:latest"
             fi
 
             docker rm -f api >/dev/null 2>&1 || true
 
             TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
-            ENV_FILE="${TARGET_DIR}/.env"
+            mkdir -p "${TARGET_DIR}"
 
-            if [ ! -f "${ENV_FILE}" ]; then
-              echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
-            fi
 
             TMP_ENV_FILE=""
+            cleanup_tmp_env() {
+              if [ -n "${TMP_ENV_FILE}" ] && [ -f "${TMP_ENV_FILE}" ]; then
+                rm -f "${TMP_ENV_FILE}"
+              fi
+            }
+            trap cleanup_tmp_env EXIT
+
             if [ -n "${BOT_TOKEN:-}" ] || [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${TELEGRAM_API_HASH:-}" ] || [ -n "${TELEGRAM_API_ID:-}" ] || [ -n "${TELEGRAM_BOT_TOKEN:-}" ] || [ -n "${TELEGRAM_CHANNEL_ID:-}" ]; then
               TMP_ENV_FILE="${TARGET_DIR}/.runtime.env"
               rm -f "${TMP_ENV_FILE}"
@@ -112,8 +126,8 @@ jobs:
               chmod 600 "${TMP_ENV_FILE}"
 
               write_secret() {
-                KEY="$1"
-                VALUE="$2"
+                local KEY="$1"
+                local VALUE="$2"
                 if [ -n "${VALUE}" ]; then
                   printf '%s=%s\n' "${KEY}" "${VALUE}" >> "${TMP_ENV_FILE}"
                 fi
@@ -127,12 +141,10 @@ jobs:
               write_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
             fi
 
-            ENV_ARGS=""
-            if [ -f "${ENV_FILE}" ]; then
-              ENV_ARGS="${ENV_ARGS} --env-file ${ENV_FILE}"
-            fi
+            ENV_ARGS=()
+
             if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
-              ENV_ARGS="${ENV_ARGS} --env-file ${TMP_ENV_FILE}"
+              ENV_ARGS+=(--env-file "${TMP_ENV_FILE}")
             fi
 
             API_PORT="${API_HOST_PORT:-8000}"
@@ -140,11 +152,7 @@ jobs:
             docker run -d \
               --name api \
               --restart unless-stopped \
-              ${ENV_ARGS} \
+              "${ENV_ARGS[@]}" \
               -p "${API_PORT}:8000" \
               "${IMAGE_REF}" \
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
-
-            if [ -n "${TMP_ENV_FILE}" ]; then
-              rm -f "${TMP_ENV_FILE}"
-            fi
