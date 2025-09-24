@@ -104,36 +104,6 @@ jobs:
             else
               echo 'Debug (deploy): GHCR_TOKEN missing'
             fi
-            if [ -n "${BOT_TOKEN:-}" ]; then
-              echo 'Debug (deploy): BOT_TOKEN provided'
-            else
-              echo 'Debug (deploy): BOT_TOKEN missing'
-            fi
-            if [ -n "${OPENAI_API_KEY:-}" ]; then
-              echo 'Debug (deploy): OPENAI_API_KEY provided'
-            else
-              echo 'Debug (deploy): OPENAI_API_KEY missing'
-            fi
-            if [ -n "${TELEGRAM_API_HASH:-}" ]; then
-              echo 'Debug (deploy): TELEGRAM_API_HASH provided'
-            else
-              echo 'Debug (deploy): TELEGRAM_API_HASH missing'
-            fi
-            if [ -n "${TELEGRAM_API_ID:-}" ]; then
-              echo 'Debug (deploy): TELEGRAM_API_ID provided'
-            else
-              echo 'Debug (deploy): TELEGRAM_API_ID missing'
-            fi
-            if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
-              echo 'Debug (deploy): TELEGRAM_BOT_TOKEN provided'
-            else
-              echo 'Debug (deploy): TELEGRAM_BOT_TOKEN missing'
-            fi
-            if [ -n "${TELEGRAM_CHANNEL_ID:-}" ]; then
-              echo 'Debug (deploy): TELEGRAM_CHANNEL_ID provided'
-            else
-              echo 'Debug (deploy): TELEGRAM_CHANNEL_ID missing'
-            fi
 
             if ! command -v docker >/dev/null 2>&1; then
               echo 'Docker binary not found on remote host.' >&2
@@ -161,15 +131,16 @@ jobs:
             mkdir -p "${TARGET_DIR}"
             ENV_FILE="${TARGET_DIR}/.env"
 
-            if [ ! -f "${ENV_FILE}" ]; then
-              echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
-            else
+            if [ -f "${ENV_FILE}" ]; then
               echo "Debug (deploy): Found ${ENV_FILE}"
+            else
+              echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
             fi
 
             TMP_ENV_FILE=""
             cleanup_tmp_env() {
               if [ -n "${TMP_ENV_FILE}" ] && [ -f "${TMP_ENV_FILE}" ]; then
+                echo "Debug (deploy): Removing ${TMP_ENV_FILE}"
                 rm -f "${TMP_ENV_FILE}"
               fi
             }
@@ -196,6 +167,11 @@ jobs:
               write_secret TELEGRAM_API_ID "${TELEGRAM_API_ID:-}"
               write_secret TELEGRAM_BOT_TOKEN "${TELEGRAM_BOT_TOKEN:-}"
               write_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
+
+              echo 'Debug (deploy): Runtime secrets file contents:'
+              cat "${TMP_ENV_FILE}"
+            else
+              echo 'Debug (deploy): No runtime secrets provided.'
             fi
 
             ENV_ARGS=()
@@ -214,3 +190,6 @@ jobs:
               -p "${API_PORT}:8000" \
               "${IMAGE_REF}" \
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
+
+            echo 'Debug (deploy): Container started. Environment variables inside container:'
+            docker exec api env | grep -E '^BOT_TOKEN=|^OPENAI_API_KEY=|^TELEGRAM_'
