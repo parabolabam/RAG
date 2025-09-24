@@ -1,4 +1,4 @@
-name: Deploy Cron & API Stack
+name: Deploy API Container
 
 on:
   push:
@@ -6,18 +6,15 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  PROJECT_DIR: apps/senpy-ai-news-report
-  IMAGE_NAME: senpy-ai-news-report
-  IMAGE_TAG: ${{ github.sha }}
-  IMAGE_NAMESPACE: ${{ github.repository_owner }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+
+    env:
+      PROJECT_DIR: apps/senpy-ai-news-report
 
     steps:
       - name: Checkout repository
@@ -33,26 +30,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build and push container images
+      - name: Build and push container image
         working-directory: ${{ env.PROJECT_DIR }}
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          IMAGE_NAME_VALUE="${IMAGE_NAME:-}"
-          IMAGE_NAMESPACE_VALUE="${IMAGE_NAMESPACE:-}"
+          IMAGE_NAME_VALUE="senpy-ai-news-report"
           IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
-
-          if [ -z "${IMAGE_NAME_VALUE}" ]; then
-            echo "IMAGE_NAME is not set." >&2
-            exit 1
-          fi
+          IMAGE_NAMESPACE_VALUE="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
 
           if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
-            echo "IMAGE_NAMESPACE is not set." >&2
+            echo "Unable to determine repository owner." >&2
             exit 1
           fi
 
@@ -66,13 +56,15 @@ jobs:
           docker push "${IMAGE_SHA}"
           docker push "${IMAGE_LATEST}"
 
+          echo "IMAGE_NAME=${IMAGE_NAME_VALUE}" >> "$GITHUB_ENV"
           echo "IMAGE_REPO=${IMAGE_REPO}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${IMAGE_TAG_VALUE}" >> "$GITHUB_ENV"
 
-      - name: Deploy on remote host
+      - name: Deploy API on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
+          IMAGE_REPO: ${{ env.IMAGE_REPO }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
@@ -90,23 +82,21 @@ jobs:
           script: |
             set -euo pipefail
 
-            IMAGE_NAME_VALUE="${IMAGE_NAME:-}"
-            IMAGE_NAMESPACE_VALUE="${IMAGE_NAMESPACE:-}"
+            IMAGE_NAME_VALUE="${IMAGE_NAME:-senpy-ai-news-report}"
+            IMAGE_REPO_VALUE="${IMAGE_REPO:-}"
             IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
 
-            if [ -z "${IMAGE_NAME_VALUE}" ]; then
-              echo "IMAGE_NAME is not set." >&2
-              exit 1
+            if [ -z "${IMAGE_REPO_VALUE}" ]; then
+              IMAGE_NAMESPACE_VALUE="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
+              if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
+                echo "Unable to determine repository owner." >&2
+                exit 1
+              fi
+              OWNER_LOWER=$(printf '%s' "${IMAGE_NAMESPACE_VALUE}" | tr '[:upper:]' '[:lower:]')
+              IMAGE_REPO_VALUE="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
             fi
 
-            if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
-              echo "IMAGE_NAMESPACE is not set." >&2
-              exit 1
-            fi
-
-            OWNER_LOWER=$(printf '%s' "${IMAGE_NAMESPACE_VALUE}" | tr '[:upper:]' '[:lower:]')
-            IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
-            IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG_VALUE}"
+            IMAGE_REF="${IMAGE_REPO_VALUE}:${IMAGE_TAG_VALUE}"
 
             if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
               echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
@@ -116,19 +106,17 @@ jobs:
 
             if ! docker pull "${IMAGE_REF}"; then
               echo "Falling back to latest image tag" >&2
-              docker pull "${IMAGE_REPO}:latest"
-              IMAGE_REF="${IMAGE_REPO}:latest"
+              docker pull "${IMAGE_REPO_VALUE}:latest"
+              IMAGE_REF="${IMAGE_REPO_VALUE}:latest"
             fi
 
-            for svc in cron-github cron-feeds api; do
-              docker rm -f "${svc}" >/dev/null 2>&1 || true
-            done
+            docker rm -f api >/dev/null 2>&1 || true
 
             TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
             ENV_FILE="${TARGET_DIR}/.env"
 
             if [ ! -f "${ENV_FILE}" ]; then
-              echo 'Warning: .env file not found on remote host; containers may fail to start.' >&2
+              echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
             fi
 
             TMP_ENV_FILE=""
@@ -154,32 +142,20 @@ jobs:
               write_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
             fi
 
-            CONTAINER_ENV_ARGS=""
-
-            if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
-              CONTAINER_ENV_ARGS="${CONTAINER_ENV_ARGS} --env-file ${TMP_ENV_FILE}"
+            ENV_ARGS=""
+            if [ -f "${ENV_FILE}" ]; then
+              ENV_ARGS="${ENV_ARGS} --env-file ${ENV_FILE}"
             fi
-
-            # docker run -d \
-            #   --name cron-github \
-            #   --restart unless-stopped \
-            #   ${CONTAINER_ENV_ARGS} \
-            #   "${IMAGE_REF}" \
-            #   poetry run python -m crons.github_trends_cron
-            #
-            # docker run -d \
-            #   --name cron-feeds \
-            #   --restart unless-stopped \
-            #   ${CONTAINER_ENV_ARGS} \
-            #   "${IMAGE_REF}" \
-            #   poetry run python -m crons.feeds_cron
+            if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
+              ENV_ARGS="${ENV_ARGS} --env-file ${TMP_ENV_FILE}"
+            fi
 
             API_PORT="${API_HOST_PORT:-8000}"
 
             docker run -d \
               --name api \
               --restart unless-stopped \
-              ${CONTAINER_ENV_ARGS} \
+              ${ENV_ARGS} \
               -p "${API_PORT}:8000" \
               "${IMAGE_REF}" \
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
