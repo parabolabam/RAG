@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from senpy_ai_news_report.features.news.article_based_post.models.article import Article
 from senpy_ai_news_report.features.news.article_based_post.post_article import (
@@ -9,6 +9,7 @@ from senpy_ai_news_report.features.news.github_trending.post_github_trends impor
     post_github_trends,
 )
 from senpy_ai_news_report.features.news.rss.feed_parser import parse_feeds, post_feeds
+from senpy_ai_news_report.utils.auth import require_api_token
 from .github_trending.github_trends_searcher import (
     fetch_github_trending,
 )
@@ -16,7 +17,7 @@ from .github_trending.github_trends_searcher import (
 
 load_dotenv()
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_token)])
 
 
 @router.get("/github-trends")

@@ -71,11 +71,12 @@ jobs:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          API_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
         with:
           host: ${{ secrets.CRON_DEPLOY_HOST }}
           username: ${{ secrets.CRON_DEPLOY_USER }}
           key: ${{ secrets.CRON_DEPLOY_SSH_KEY }}
-          envs: GHCR_USERNAME,GHCR_TOKEN,API_HOST_PORT,BOT_TOKEN,OPENAI_API_KEY,TELEGRAM_API_HASH,TELEGRAM_API_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHANNEL_ID
+          envs: API_TOKEN,GHCR_USERNAME,GHCR_TOKEN,API_HOST_PORT,BOT_TOKEN,OPENAI_API_KEY,TELEGRAM_API_HASH,TELEGRAM_API_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHANNEL_ID
 
           script: |
             set -euo pipefail
@@ -89,44 +90,11 @@ jobs:
             IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG}"
             API_PORT="${API_HOST_PORT:-8000}"
 
-            echo "Debug (deploy): IMAGE_NAME=${IMAGE_NAME}"
-            echo "Debug (deploy): IMAGE_TAG=${IMAGE_TAG}"
-            echo "Debug (deploy): REPO_SLUG=${REPO_SLUG}"
-            echo "Debug (deploy): REPO_OWNER=${REPO_OWNER}"
-            echo "Debug (deploy): IMAGE_REPO=${IMAGE_REPO}"
-            echo "Debug (deploy): IMAGE_REF=${IMAGE_REF}"
-            echo "Debug (deploy): API_PORT=${API_PORT}"
-
-            check_secret() {
-              local NAME="$1"
-              local VALUE="$2"
-              if [ -z "${VALUE}" ]; then
-                echo "Error (deploy): Secret ${NAME} is missing" >&2
-                exit 1
-              else
-                echo "Debug (deploy): Secret ${NAME} is present"
-              fi
-            }
-
-            check_secret GHCR_USERNAME "${GHCR_USERNAME:-}"
-            check_secret GHCR_TOKEN "${GHCR_TOKEN:-}"
-            check_secret BOT_TOKEN "${BOT_TOKEN:-}"
-            check_secret OPENAI_API_KEY "${OPENAI_API_KEY:-}"
-            check_secret TELEGRAM_API_HASH "${TELEGRAM_API_HASH:-}"
-            check_secret TELEGRAM_API_ID "${TELEGRAM_API_ID:-}"
-            check_secret TELEGRAM_BOT_TOKEN "${TELEGRAM_BOT_TOKEN:-}"
-            check_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
-
             if ! command -v docker >/dev/null 2>&1; then
               echo 'Docker binary not found on remote host.' >&2
               exit 1
             fi
 
-            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
-            else
-              echo 'Warning: GHCR credentials not provided; attempting to pull using existing auth context.' >&2
-            fi
 
             if ! docker pull "${IMAGE_REF}"; then
               echo "Falling back to latest image tag" >&2
@@ -150,9 +118,6 @@ jobs:
             fi
 
             ENV_ARGS=()
-            if [ -f "${ENV_FILE}" ]; then
-              ENV_ARGS+=(--env-file "${ENV_FILE}")
-            fi
 
             # pass secrets explicitly with -e
             ENV_ARGS+=(-e "BOT_TOKEN=${BOT_TOKEN}")
@@ -161,7 +126,7 @@ jobs:
             ENV_ARGS+=(-e "TELEGRAM_API_ID=${TELEGRAM_API_ID}")
             ENV_ARGS+=(-e "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}")
             ENV_ARGS+=(-e "TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}")
-            echo "Debug (deploy): ENV flags set for BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID"
+            ENV_ARGS+-(-e "API_AUTH_TOKEN=${API_AUTH_TOKEN}")
 
             docker run -d \
               --name api \
@@ -172,4 +137,3 @@ jobs:
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
 
             echo 'Debug (deploy): Container started. Environment variables inside container:'
-            docker exec api env | grep -E '^BOT_TOKEN=|^OPENAI_API_KEY=|^TELEGRAM_'
