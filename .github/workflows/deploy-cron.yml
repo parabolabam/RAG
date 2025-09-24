@@ -4,20 +4,20 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "apps/senpy-ai-news-report/**"
   workflow_dispatch:
 
 env:
   PROJECT_DIR: apps/senpy-ai-news-report
-  REGISTRY_HOST: registry.digitalocean.com
+  IMAGE_NAME: senpy-ai-news-report
   IMAGE_TAG: ${{ github.sha }}
-  IMAGE_REPO: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}
+  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -26,76 +26,91 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Authenticate with DigitalOcean
-        uses: digitalocean/action-doctl@v2
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          token: ${{ secrets.DO_API_TOKEN }}
-
-      - name: Log in to DigitalOcean registry
-        run: doctl registry login --expiry-seconds 600
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       - name: Build and push container images
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -euo pipefail
-          IMAGE_SHA="${IMAGE_REPO}/${IMAGE_TAG}"
+          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
+          IMAGE_LATEST="${IMAGE_REPO}:latest"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
+          docker tag "${IMAGE_SHA}"
           docker push "${IMAGE_SHA}"
 
-      - name: Deploy on remote host
+      - name: Daeploy API server
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_REPO: ${{ env.IMAGE_REPO }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          REGISTRY_HOST: ${{ env.REGISTRY_HOST }}
-          DO_REGISTRY_USERNAME: ${{ secrets.DO_REGISTRY_USERNAME }}
-          DO_REGISTRY_PASSWORD: ${{ secrets.DO_API_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          API_HOST_PORT: ${{ secrets.API_HOST_PORT }}
         with:
           host: ${{ secrets.CRON_DEPLOY_HOST }}
-          username: root
+          username: ${{ secrets.CRON_DEPLOY_USER }}
           key: ${{ secrets.CRON_DEPLOY_SSH_KEY }}
           script: |
             set -euo pipefail
 
             TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
+            ENV_FILE="$TARGET_DIR/.env"
 
-            if [ ! -d "$TARGET_DIR" ]; then
-              echo "Target directory $TARGET_DIR does not exist on remote host." >&2
-              exit 1
-            fi
-
-            if [ -n "${DO_REGISTRY_USERNAME:-}" ] && [ -n "${DO_REGISTRY_PASSWORD:-}" ]; then
-              echo "$DO_REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$DO_REGISTRY_USERNAME" --password-stdin
-            fi
-
-            if docker compose version >/dev/null 2>&1; then
-              COMPOSE="docker compose"
-            elif docker-compose version >/dev/null 2>&1; then
-              COMPOSE="docker-compose"
+            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             else
-              echo 'Docker Compose not found on remote host.' >&2
-              exit 1
+              echo 'Warning: GHCR credentials not provided; attempting to pull using existing auth context.' >&2
             fi
 
             IMAGE_REF="$IMAGE_REPO:$IMAGE_TAG"
             if ! docker pull "$IMAGE_REF"; then
               echo "Falling back to latest image tag" >&2
               docker pull "$IMAGE_REPO:latest"
-              IMAGE_TAG_VALUE="latest"
-            else
-              IMAGE_TAG_VALUE="$IMAGE_TAG"
+              IMAGE_REF="$IMAGE_REPO:latest"
             fi
 
-            cd "$TARGET_DIR"
+            for svc in cron-github cron-feeds api; do
+              docker rm -f "$svc" >/dev/null 2>&1 || true
+            done
 
-            if [ ! -f .env ]; then
+            if [ ! -f "$ENV_FILE" ]; then
               echo 'Warning: .env file not found on remote host; containers may fail to start.' >&2
             fi
 
-            if [ ! -f docker-compose.yml ]; then
-              echo 'Warning: docker-compose.yml not found in target directory; nothing to deploy.' >&2
-              exit 1
+            RUN_ENV_ARGS=""
+            if [ -f "$ENV_FILE" ]; then
+              RUN_ENV_ARGS="--env-file $ENV_FILE"
             fi
 
-            IMAGE_REPO="$IMAGE_REPO" IMAGE_TAG="$IMAGE_TAG_VALUE" $COMPOSE up -d --remove-orphans cron-github cron-feeds api
+            # docker run -d \
+            #   --name cron-github \
+            #   --restart unless-stopped \
+            #   $RUN_ENV_ARGS \
+            #   "$IMAGE_REF" \
+            #   poetry run python -m crons.github_trends_cron
+            #
+            # docker run -d \
+            #   --name cron-feeds \
+            #   --restart unless-stopped \
+            #   $RUN_ENV_ARGS \
+            #   "$IMAGE_REF" \
+            #   poetry run python -m crons.feeds_cron
+
+            API_PORT="$API_HOST_PORT"
+            if [ -z "$API_PORT" ]; then
+              API_PORT=8000
+            fi
+
+            docker run -d \
+              --name api \
+              --restart unless-stopped \
+              $RUN_ENV_ARGS \
+              -p "${API_PORT}:8000" \
+              "$IMAGE_REF" \
+              poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
