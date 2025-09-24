@@ -16,6 +16,7 @@ jobs:
     env:
       PROJECT_DIR: apps/senpy-ai-news-report
       IMAGE_NAME: senpy-ai-news-report
+      FEEDS: ${{ secrets.FEEDS != '' && secrets.FEEDS || vars.FEEDS }}
 
     steps:
       - name: Checkout repository
@@ -72,11 +73,12 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          FEEDS: ${{ env.FEEDS }}
         with:
           host: ${{ secrets.CRON_DEPLOY_HOST }}
           username: ${{ secrets.CRON_DEPLOY_USER }}
           key: ${{ secrets.CRON_DEPLOY_SSH_KEY }}
-          envs: API_AUTH_TOKEN,GHCR_USERNAME,GHCR_TOKEN,API_HOST_PORT,BOT_TOKEN,OPENAI_API_KEY,TELEGRAM_API_HASH,TELEGRAM_API_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHANNEL_ID
+          envs: API_AUTH_TOKEN,GHCR_USERNAME,GHCR_TOKEN,API_HOST_PORT,BOT_TOKEN,OPENAI_API_KEY,TELEGRAM_API_HASH,TELEGRAM_API_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHANNEL_ID,FEEDS
 
           script: |
             set -euo pipefail
@@ -156,7 +158,11 @@ jobs:
             ENV_ARGS+=(-e "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}")
             ENV_ARGS+=(-e "TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}")
             ENV_ARGS+=(-e "API_AUTH_TOKEN=${API_AUTH_TOKEN}")
-            echo "Debug (deploy): ENV flags set for BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID"
+            if [ -n "${FEEDS:-}" ]; then
+              ENV_ARGS+=(-e "FEEDS=${FEEDS}")
+              echo "Debug (deploy): FEEDS env flag added"
+            fi
+            echo "Debug (deploy): ENV flags set for BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, API_AUTH_TOKEN"
 
             docker run -d \
               --name api \

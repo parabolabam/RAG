@@ -11,6 +11,7 @@ from crons.scheduler import (
     resume_job,
     shutdown_scheduler,
     trigger_job,
+    schedule_trigger,
 )
 from senpy_ai_news_report.utils.auth import require_api_token
 
@@ -47,8 +48,8 @@ def _validate_job(job_id: str) -> str:
 @router.post("/jobs/{job_id}/trigger")
 async def trigger(job_id: str):
     job = _validate_job(job_id)
-    await trigger_job(job)
-    return {"job": job, "status": "triggered"}
+    schedule_trigger(job)
+    return {"job": job, "status": "scheduled"}
 
 
 @router.post("/jobs/{job_id}/pause")

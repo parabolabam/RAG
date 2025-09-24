@@ -186,6 +186,18 @@ async def trigger_job(job_id: str) -> None:
     await handler()
 
 
+def schedule_trigger(job_id: str) -> asyncio.Task[None]:
+    loop = asyncio.get_running_loop()
+    task = loop.create_task(trigger_job(job_id))
+
+    def _log_result(t: asyncio.Task[None]) -> None:
+        with suppress(Exception):
+            t.result()
+
+    task.add_done_callback(_log_result)
+    return task
+
+
 def get_scheduler_state() -> str:
     scheduler = _scheduler
     if scheduler is None:
@@ -245,6 +257,7 @@ __all__ = [
     "pause_job",
     "resume_job",
     "trigger_job",
+    "schedule_trigger",
     "get_scheduler_state",
     "get_jobs_overview",
     "run_forever",
