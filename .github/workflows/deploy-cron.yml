@@ -16,7 +16,7 @@ jobs:
     env:
       PROJECT_DIR: apps/senpy-ai-news-report
       IMAGE_NAME: senpy-ai-news-report
-      FEEDS: ${{ secrets.FEEDS != '' && secrets.FEEDS || vars.FEEDS }}
+      FEEDS: ${{ vars.FEEDS }}
 
     steps:
       - name: Checkout repository
