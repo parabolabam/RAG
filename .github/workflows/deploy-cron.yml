@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
 
           IMAGE_NAME_VALUE="${IMAGE_NAME}"
-          REPO_OWNER_VALUE="${REPO_OWNER}"
+          REPO_OWNER_VALUE="${REPO_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           IMAGE_TAG_VALUE="${IMAGE_TAG}"
 
           OWNER_LOWER=$(printf '%s' "${REPO_OWNER_VALUE}" | tr '[:upper:]' '[:lower:]')
@@ -84,8 +84,11 @@ jobs:
             fi
 
             IMAGE_NAME_VALUE="${IMAGE_NAME:-senpy-ai-news-report}"
-            REPO_OWNER_VALUE="${REPO_OWNER:-}"
             IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
+            REPO_OWNER_VALUE="${REPO_OWNER:-}"
+            if [ -z "${REPO_OWNER_VALUE}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+              REPO_OWNER_VALUE="${GITHUB_REPOSITORY%%/*}"
+            fi
 
             if [ -z "${REPO_OWNER_VALUE}" ]; then
               echo 'Repo owner missing from environment.' >&2
@@ -115,6 +118,11 @@ jobs:
 
             TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
             mkdir -p "${TARGET_DIR}"
+            ENV_FILE="${TARGET_DIR}/.env"
+
+            if [ ! -f "${ENV_FILE}" ]; then
+              echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
+            fi
 
             TMP_ENV_FILE=""
             cleanup_tmp_env() {
@@ -147,6 +155,9 @@ jobs:
             fi
 
             ENV_ARGS=()
+            if [ -f "${ENV_FILE}" ]; then
+              ENV_ARGS+=(--env-file "${ENV_FILE}")
+            fi
             if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
               ENV_ARGS+=(--env-file "${TMP_ENV_FILE}")
             fi
