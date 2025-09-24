@@ -71,7 +71,7 @@ jobs:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-          API_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
         with:
           host: ${{ secrets.CRON_DEPLOY_HOST }}
           username: ${{ secrets.CRON_DEPLOY_USER }}
