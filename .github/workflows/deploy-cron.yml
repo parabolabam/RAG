@@ -15,6 +15,7 @@ jobs:
 
     env:
       PROJECT_DIR: apps/senpy-ai-news-report
+      IMAGE_NAME: senpy-ai-news-report
 
     steps:
       - name: Checkout repository
@@ -34,21 +35,14 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         env:
           IMAGE_TAG: ${{ github.sha }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
 
-          IMAGE_NAME_VALUE="senpy-ai-news-report"
-          IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
-          IMAGE_NAMESPACE_VALUE="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
-
-          if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
-            echo "Unable to determine repository owner." >&2
-            exit 1
-          fi
-
-          OWNER_LOWER=$(printf '%s' "${IMAGE_NAMESPACE_VALUE}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
-          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG_VALUE}"
+          OWNER_LOWER=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
+          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
           IMAGE_LATEST="${IMAGE_REPO}:latest"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
@@ -56,14 +50,12 @@ jobs:
           docker push "${IMAGE_SHA}"
           docker push "${IMAGE_LATEST}"
 
-          echo "IMAGE_NAME=${IMAGE_NAME_VALUE}" >> "$GITHUB_ENV"
           echo "IMAGE_REPO=${IMAGE_REPO}" >> "$GITHUB_ENV"
-          echo "IMAGE_TAG=${IMAGE_TAG_VALUE}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
 
       - name: Deploy API on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
           IMAGE_REPO: ${{ env.IMAGE_REPO }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
@@ -82,18 +74,11 @@ jobs:
           script: |
             set -euo pipefail
 
-            IMAGE_NAME_VALUE="${IMAGE_NAME:-senpy-ai-news-report}"
-            IMAGE_REPO_VALUE="${IMAGE_REPO:-}"
-            IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
+            IMAGE_REPO_VALUE="${IMAGE_REPO:-}"; IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
 
             if [ -z "${IMAGE_REPO_VALUE}" ]; then
-              IMAGE_NAMESPACE_VALUE="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
-              if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
-                echo "Unable to determine repository owner." >&2
-                exit 1
-              fi
-              OWNER_LOWER=$(printf '%s' "${IMAGE_NAMESPACE_VALUE}" | tr '[:upper:]' '[:lower:]')
-              IMAGE_REPO_VALUE="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
+              echo "IMAGE_REPO missing from environment." >&2
+              exit 1
             fi
 
             IMAGE_REF="${IMAGE_REPO_VALUE}:${IMAGE_TAG_VALUE}"
