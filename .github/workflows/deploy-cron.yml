@@ -16,8 +16,6 @@ jobs:
     env:
       PROJECT_DIR: apps/senpy-ai-news-report
       IMAGE_NAME: senpy-ai-news-report
-      REPO_OWNER: ${{ github.repository_owner }}
-      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout repository
@@ -37,19 +35,24 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         env:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          REPO_OWNER: ${{ env.REPO_OWNER }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          REPO_SLUG: ${{ github.repository }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
 
           IMAGE_NAME_VALUE="${IMAGE_NAME}"
-          REPO_OWNER_VALUE="${REPO_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           IMAGE_TAG_VALUE="${IMAGE_TAG}"
-
+          REPO_OWNER_VALUE=$(printf '%s' "${REPO_SLUG}" | cut -d'/' -f1)
           OWNER_LOWER=$(printf '%s' "${REPO_OWNER_VALUE}" | tr '[:upper:]' '[:lower:]')
+
           IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
           IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG_VALUE}"
           IMAGE_LATEST="${IMAGE_REPO}:latest"
+
+          echo "Debug (build): IMAGE_NAME=${IMAGE_NAME_VALUE}"
+          echo "Debug (build): IMAGE_TAG=${IMAGE_TAG_VALUE}"
+          echo "Debug (build): REPO_OWNER=${REPO_OWNER_VALUE}"
+          echo "Debug (build): IMAGE_REPO=${IMAGE_REPO}"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
           docker tag "${IMAGE_SHA}" "${IMAGE_LATEST}"
@@ -59,9 +62,6 @@ jobs:
       - name: Deploy API on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          REPO_OWNER: ${{ env.REPO_OWNER }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           API_HOST_PORT: ${{ secrets.API_HOST_PORT }}
@@ -78,26 +78,67 @@ jobs:
           script: |
             set -euo pipefail
 
+            IMAGE_NAME="senpy-ai-news-report"
+            IMAGE_TAG="${{ github.sha }}"
+            REPO_SLUG="${{ github.repository }}"
+            REPO_OWNER=$(printf '%s' "${REPO_SLUG}" | cut -d'/' -f1)
+            OWNER_LOWER=$(printf '%s' "${REPO_OWNER}" | tr '[:upper:]' '[:lower:]')
+            IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
+            IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG}"
+            API_PORT="${API_HOST_PORT:-8000}"
+
+            echo "Debug (deploy): IMAGE_NAME=${IMAGE_NAME}"
+            echo "Debug (deploy): IMAGE_TAG=${IMAGE_TAG}"
+            echo "Debug (deploy): REPO_SLUG=${REPO_SLUG}"
+            echo "Debug (deploy): REPO_OWNER=${REPO_OWNER}"
+            echo "Debug (deploy): IMAGE_REPO=${IMAGE_REPO}"
+            echo "Debug (deploy): IMAGE_REF=${IMAGE_REF}"
+            echo "Debug (deploy): API_PORT=${API_PORT}"
+            if [ -n "${GHCR_USERNAME:-}" ]; then
+              echo 'Debug (deploy): GHCR_USERNAME provided'
+            else
+              echo 'Debug (deploy): GHCR_USERNAME missing'
+            fi
+            if [ -n "${GHCR_TOKEN:-}" ]; then
+              echo 'Debug (deploy): GHCR_TOKEN provided'
+            else
+              echo 'Debug (deploy): GHCR_TOKEN missing'
+            fi
+            if [ -n "${BOT_TOKEN:-}" ]; then
+              echo 'Debug (deploy): BOT_TOKEN provided'
+            else
+              echo 'Debug (deploy): BOT_TOKEN missing'
+            fi
+            if [ -n "${OPENAI_API_KEY:-}" ]; then
+              echo 'Debug (deploy): OPENAI_API_KEY provided'
+            else
+              echo 'Debug (deploy): OPENAI_API_KEY missing'
+            fi
+            if [ -n "${TELEGRAM_API_HASH:-}" ]; then
+              echo 'Debug (deploy): TELEGRAM_API_HASH provided'
+            else
+              echo 'Debug (deploy): TELEGRAM_API_HASH missing'
+            fi
+            if [ -n "${TELEGRAM_API_ID:-}" ]; then
+              echo 'Debug (deploy): TELEGRAM_API_ID provided'
+            else
+              echo 'Debug (deploy): TELEGRAM_API_ID missing'
+            fi
+            if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              echo 'Debug (deploy): TELEGRAM_BOT_TOKEN provided'
+            else
+              echo 'Debug (deploy): TELEGRAM_BOT_TOKEN missing'
+            fi
+            if [ -n "${TELEGRAM_CHANNEL_ID:-}" ]; then
+              echo 'Debug (deploy): TELEGRAM_CHANNEL_ID provided'
+            else
+              echo 'Debug (deploy): TELEGRAM_CHANNEL_ID missing'
+            fi
+
             if ! command -v docker >/dev/null 2>&1; then
               echo 'Docker binary not found on remote host.' >&2
               exit 1
             fi
-
-            IMAGE_NAME_VALUE="${IMAGE_NAME:-senpy-ai-news-report}"
-            IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
-            REPO_OWNER_VALUE="${REPO_OWNER:-}"
-            if [ -z "${REPO_OWNER_VALUE}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
-              REPO_OWNER_VALUE="${GITHUB_REPOSITORY%%/*}"
-            fi
-
-            if [ -z "${REPO_OWNER_VALUE}" ]; then
-              echo 'Repo owner missing from environment.' >&2
-              exit 1
-            fi
-
-            OWNER_LOWER=$(printf '%s' "${REPO_OWNER_VALUE}" | tr '[:upper:]' '[:lower:]')
-            IMAGE_REPO_VALUE="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
-            IMAGE_REF="${IMAGE_REPO_VALUE}:${IMAGE_TAG_VALUE}"
 
             if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
               echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
@@ -107,11 +148,11 @@ jobs:
 
             if ! docker pull "${IMAGE_REF}"; then
               echo "Falling back to latest image tag" >&2
-              if ! docker pull "${IMAGE_REPO_VALUE}:latest"; then
+              if ! docker pull "${IMAGE_REPO}:latest"; then
                 echo 'Unable to pull image from GHCR.' >&2
                 exit 1
               fi
-              IMAGE_REF="${IMAGE_REPO_VALUE}:latest"
+              IMAGE_REF="${IMAGE_REPO}:latest"
             fi
 
             docker rm -f api >/dev/null 2>&1 || true
@@ -122,6 +163,8 @@ jobs:
 
             if [ ! -f "${ENV_FILE}" ]; then
               echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
+            else
+              echo "Debug (deploy): Found ${ENV_FILE}"
             fi
 
             TMP_ENV_FILE=""
@@ -137,6 +180,7 @@ jobs:
               rm -f "${TMP_ENV_FILE}"
               touch "${TMP_ENV_FILE}"
               chmod 600 "${TMP_ENV_FILE}"
+              echo "Debug (deploy): Writing runtime secrets to ${TMP_ENV_FILE}"
 
               write_secret() {
                 local KEY="$1"
@@ -161,8 +205,7 @@ jobs:
             if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
               ENV_ARGS+=(--env-file "${TMP_ENV_FILE}")
             fi
-
-            API_PORT="${API_HOST_PORT:-8000}"
+            echo "Debug (deploy): ENV_ARGS=${ENV_ARGS[*]}"
 
             docker run -d \
               --name api \
