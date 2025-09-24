@@ -16,6 +16,8 @@ jobs:
     env:
       PROJECT_DIR: apps/senpy-ai-news-report
       IMAGE_NAME: senpy-ai-news-report
+      REPO_OWNER: ${{ github.repository_owner }}
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout repository
@@ -32,18 +34,21 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build and push container image
-        id: build_image
         working-directory: ${{ env.PROJECT_DIR }}
         env:
-          IMAGE_TAG: ${{ github.sha }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          OWNER: ${{ github.repository_owner }}
+          REPO_OWNER: ${{ env.REPO_OWNER }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
           set -euo pipefail
 
-          OWNER_LOWER=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
-          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
+          IMAGE_NAME_VALUE="${IMAGE_NAME}"
+          REPO_OWNER_VALUE="${REPO_OWNER}"
+          IMAGE_TAG_VALUE="${IMAGE_TAG}"
+
+          OWNER_LOWER=$(printf '%s' "${REPO_OWNER_VALUE}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
+          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG_VALUE}"
           IMAGE_LATEST="${IMAGE_REPO}:latest"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
@@ -51,14 +56,12 @@ jobs:
           docker push "${IMAGE_SHA}"
           docker push "${IMAGE_LATEST}"
 
-          printf 'image_repo=%s\n' "${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
-          printf 'image_tag=%s\n' "${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-
       - name: Deploy API on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_REPO: ${{ steps.build_image.outputs.image_repo }}
-          IMAGE_TAG: ${{ steps.build_image.outputs.image_tag }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          REPO_OWNER: ${{ env.REPO_OWNER }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           API_HOST_PORT: ${{ secrets.API_HOST_PORT }}
@@ -80,14 +83,17 @@ jobs:
               exit 1
             fi
 
-            IMAGE_REPO_VALUE="${IMAGE_REPO:-}"
+            IMAGE_NAME_VALUE="${IMAGE_NAME:-senpy-ai-news-report}"
+            REPO_OWNER_VALUE="${REPO_OWNER:-}"
             IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
 
-            if [ -z "${IMAGE_REPO_VALUE}" ]; then
-              echo 'IMAGE_REPO missing from environment.' >&2
+            if [ -z "${REPO_OWNER_VALUE}" ]; then
+              echo 'Repo owner missing from environment.' >&2
               exit 1
             fi
 
+            OWNER_LOWER=$(printf '%s' "${REPO_OWNER_VALUE}" | tr '[:upper:]' '[:lower:]')
+            IMAGE_REPO_VALUE="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
             IMAGE_REF="${IMAGE_REPO_VALUE}:${IMAGE_TAG_VALUE}"
 
             if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
@@ -109,7 +115,6 @@ jobs:
 
             TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
             mkdir -p "${TARGET_DIR}"
-
 
             TMP_ENV_FILE=""
             cleanup_tmp_env() {
@@ -142,7 +147,6 @@ jobs:
             fi
 
             ENV_ARGS=()
-
             if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
               ENV_ARGS+=(--env-file "${TMP_ENV_FILE}")
             fi
