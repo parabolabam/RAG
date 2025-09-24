@@ -109,14 +109,6 @@ jobs:
 
             TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
             mkdir -p "${TARGET_DIR}"
-            ENV_FILE="${TARGET_DIR}/.env"
-
-            if [ -f "${ENV_FILE}" ]; then
-              echo "Debug (deploy): Found ${ENV_FILE}"
-            else
-              echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
-            fi
-
             ENV_ARGS=()
 
             # pass secrets explicitly with -e

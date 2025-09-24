@@ -1,39 +1,44 @@
+import logging
 import os
-
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 
 import debugpy
 import uvicorn
+from fastapi import FastAPI
+from dotenv import load_dotenv
 
+from crons.scheduler import ensure_scheduler_started, shutdown_scheduler
+from senpy_ai_news_report.features.cron.router import router as cron_router
 from senpy_ai_news_report.features.news.router import router as news_router
-from senpy_ai_news_report.utils.auth import require_api_token
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 if os.getenv("DEBUG") is not None:
     debugpy.listen(5679)
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        await ensure_scheduler_started()
+        logger.info("Cron scheduler started")
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.exception("Failed to start cron scheduler: %s", exc)
+    try:
+        yield
+    finally:
+        await shutdown_scheduler(wait=True)
+
+
 app = FastAPI(
     swagger_ui_parameters={"syntaxHighlight": False},
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    lifespan=lifespan,
 )
 
 app.include_router(news_router)
-
-
-@app.get("/openapi.json", include_in_schema=False)
-async def openapi_endpoint(_: None = Depends(require_api_token)) -> JSONResponse:
-    return JSONResponse(app.openapi())
-
-
-@app.get("/docs", include_in_schema=False)
-async def swagger_ui(_: None = Depends(require_api_token)):
-    return get_swagger_ui_html(openapi_url="/openapi.json", title="Senpy AI News API")
+app.include_router(cron_router)
 
 
 if __name__ == "__main__":
