@@ -42,9 +42,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          OWNER_LOWER=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
-          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
+          IMAGE_NAME_VALUE="${IMAGE_NAME:-}"
+          IMAGE_NAMESPACE_VALUE="${IMAGE_NAMESPACE:-}"
+          IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
+
+          if [ -z "${IMAGE_NAME_VALUE}" ]; then
+            echo "IMAGE_NAME is not set." >&2
+            exit 1
+          fi
+
+          if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
+            echo "IMAGE_NAMESPACE is not set." >&2
+            exit 1
+          fi
+
+          OWNER_LOWER=$(printf '%s' "${IMAGE_NAMESPACE_VALUE}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
+          IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG_VALUE}"
           IMAGE_LATEST="${IMAGE_REPO}:latest"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
@@ -70,9 +84,23 @@ jobs:
           script: |
             set -euo pipefail
 
-            OWNER_LOWER=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-            IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
-            IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG}"
+            IMAGE_NAME_VALUE="${IMAGE_NAME:-}"
+            IMAGE_NAMESPACE_VALUE="${IMAGE_NAMESPACE:-}"
+            IMAGE_TAG_VALUE="${IMAGE_TAG:-latest}"
+
+            if [ -z "${IMAGE_NAME_VALUE}" ]; then
+              echo "IMAGE_NAME is not set." >&2
+              exit 1
+            fi
+
+            if [ -z "${IMAGE_NAMESPACE_VALUE}" ]; then
+              echo "IMAGE_NAMESPACE is not set." >&2
+              exit 1
+            fi
+
+            OWNER_LOWER=$(printf '%s' "${IMAGE_NAMESPACE_VALUE}" | tr '[:upper:]' '[:lower:]')
+            IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME_VALUE}"
+            IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG_VALUE}"
 
             if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
               echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
@@ -97,34 +125,31 @@ jobs:
               echo 'Warning: .env file not found on remote host; containers may fail to start.' >&2
             fi
 
-            RUN_ENV_ARGS=""
+            ENV_ARG=""
             if [ -f "${ENV_FILE}" ]; then
-              RUN_ENV_ARGS="--env-file ${ENV_FILE}"
+              ENV_ARG="--env-file ${ENV_FILE}"
             fi
+            #
+            # docker run -d \
+            #   --name cron-github \
+            #   --restart unless-stopped \
+            #   ${ENV_ARG} \
+            #   "${IMAGE_REF}" \
+            #   poetry run python -m crons.github_trends_cron
+            #
+            # docker run -d \
+            #   --name cron-feeds \
+            #   --restart unless-stopped \
+            #   ${ENV_ARG} \
+            #   "${IMAGE_REF}" \
+            #   poetry run python -m crons.feeds_cron
 
-            docker run -d \
-              --name cron-github \
-              --restart unless-stopped \
-              ${RUN_ENV_ARGS} \
-              "${IMAGE_REF}" \
-              poetry run python -m crons.github_trends_cron
-
-            docker run -d \
-              --name cron-feeds \
-              --restart unless-stopped \
-              ${RUN_ENV_ARGS} \
-              "${IMAGE_REF}" \
-              poetry run python -m crons.feeds_cron
-
-            API_PORT="${API_HOST_PORT}"
-            if [ -z "${API_PORT}" ]; then
-              API_PORT=8000
-            fi
+            API_PORT="${API_HOST_PORT:-8000}"
 
             docker run -d \
               --name api \
               --restart unless-stopped \
-              ${RUN_ENV_ARGS} \
+              ${ENV_ARG} \
               -p "${API_PORT}:8000" \
               "${IMAGE_REF}" \
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
