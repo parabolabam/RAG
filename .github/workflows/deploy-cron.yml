@@ -94,16 +94,26 @@ jobs:
             echo "Debug (deploy): IMAGE_REPO=${IMAGE_REPO}"
             echo "Debug (deploy): IMAGE_REF=${IMAGE_REF}"
             echo "Debug (deploy): API_PORT=${API_PORT}"
-            if [ -n "${GHCR_USERNAME:-}" ]; then
-              echo 'Debug (deploy): GHCR_USERNAME provided'
-            else
-              echo 'Debug (deploy): GHCR_USERNAME missing'
-            fi
-            if [ -n "${GHCR_TOKEN:-}" ]; then
-              echo 'Debug (deploy): GHCR_TOKEN provided'
-            else
-              echo 'Debug (deploy): GHCR_TOKEN missing'
-            fi
+
+            check_secret() {
+              local NAME="$1"
+              local VALUE="$2"
+              if [ -z "${VALUE}" ]; then
+                echo "Error (deploy): Secret ${NAME} is missing" >&2
+                exit 1
+              else
+                echo "Debug (deploy): Secret ${NAME} is present"
+              fi
+            }
+
+            check_secret GHCR_USERNAME "${GHCR_USERNAME:-}"
+            check_secret GHCR_TOKEN "${GHCR_TOKEN:-}"
+            check_secret BOT_TOKEN "${BOT_TOKEN:-}"
+            check_secret OPENAI_API_KEY "${OPENAI_API_KEY:-}"
+            check_secret TELEGRAM_API_HASH "${TELEGRAM_API_HASH:-}"
+            check_secret TELEGRAM_API_ID "${TELEGRAM_API_ID:-}"
+            check_secret TELEGRAM_BOT_TOKEN "${TELEGRAM_BOT_TOKEN:-}"
+            check_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
 
             if ! command -v docker >/dev/null 2>&1; then
               echo 'Docker binary not found on remote host.' >&2
@@ -137,51 +147,19 @@ jobs:
               echo 'Warning: .env file not found on remote host; api container may miss configuration.' >&2
             fi
 
-            TMP_ENV_FILE=""
-            cleanup_tmp_env() {
-              if [ -n "${TMP_ENV_FILE}" ] && [ -f "${TMP_ENV_FILE}" ]; then
-                echo "Debug (deploy): Removing ${TMP_ENV_FILE}"
-                rm -f "${TMP_ENV_FILE}"
-              fi
-            }
-            trap cleanup_tmp_env EXIT
-
-            if [ -n "${BOT_TOKEN:-}" ] || [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${TELEGRAM_API_HASH:-}" ] || [ -n "${TELEGRAM_API_ID:-}" ] || [ -n "${TELEGRAM_BOT_TOKEN:-}" ] || [ -n "${TELEGRAM_CHANNEL_ID:-}" ]; then
-              TMP_ENV_FILE="${TARGET_DIR}/.runtime.env"
-              rm -f "${TMP_ENV_FILE}"
-              touch "${TMP_ENV_FILE}"
-              chmod 600 "${TMP_ENV_FILE}"
-              echo "Debug (deploy): Writing runtime secrets to ${TMP_ENV_FILE}"
-
-              write_secret() {
-                local KEY="$1"
-                local VALUE="$2"
-                if [ -n "${VALUE}" ]; then
-                  printf '%s=%s\n' "${KEY}" "${VALUE}" >> "${TMP_ENV_FILE}"
-                fi
-              }
-
-              write_secret BOT_TOKEN "${BOT_TOKEN:-}"
-              write_secret OPENAI_API_KEY "${OPENAI_API_KEY:-}"
-              write_secret TELEGRAM_API_HASH "${TELEGRAM_API_HASH:-}"
-              write_secret TELEGRAM_API_ID "${TELEGRAM_API_ID:-}"
-              write_secret TELEGRAM_BOT_TOKEN "${TELEGRAM_BOT_TOKEN:-}"
-              write_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
-
-              echo 'Debug (deploy): Runtime secrets file contents:'
-              cat "${TMP_ENV_FILE}"
-            else
-              echo 'Debug (deploy): No runtime secrets provided.'
-            fi
-
             ENV_ARGS=()
             if [ -f "${ENV_FILE}" ]; then
               ENV_ARGS+=(--env-file "${ENV_FILE}")
             fi
-            if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
-              ENV_ARGS+=(--env-file "${TMP_ENV_FILE}")
-            fi
-            echo "Debug (deploy): ENV_ARGS=${ENV_ARGS[*]}"
+
+            # pass secrets explicitly with -e
+            ENV_ARGS+=(-e "BOT_TOKEN=${BOT_TOKEN}")
+            ENV_ARGS+=(-e "OPENAI_API_KEY=${OPENAI_API_KEY}")
+            ENV_ARGS+=(-e "TELEGRAM_API_HASH=${TELEGRAM_API_HASH}")
+            ENV_ARGS+=(-e "TELEGRAM_API_ID=${TELEGRAM_API_ID}")
+            ENV_ARGS+=(-e "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}")
+            ENV_ARGS+=(-e "TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}")
+            echo "Debug (deploy): ENV flags set for BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID"
 
             docker run -d \
               --name api \
