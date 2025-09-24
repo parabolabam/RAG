@@ -77,6 +77,12 @@ jobs:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           API_HOST_PORT: ${{ secrets.API_HOST_PORT }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
         with:
           host: ${{ secrets.CRON_DEPLOY_HOST }}
           username: ${{ secrets.CRON_DEPLOY_USER }}
@@ -125,22 +131,46 @@ jobs:
               echo 'Warning: .env file not found on remote host; containers may fail to start.' >&2
             fi
 
-            ENV_ARG=""
-            if [ -f "${ENV_FILE}" ]; then
-              ENV_ARG="--env-file ${ENV_FILE}"
+            TMP_ENV_FILE=""
+            if [ -n "${BOT_TOKEN:-}" ] || [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${TELEGRAM_API_HASH:-}" ] || [ -n "${TELEGRAM_API_ID:-}" ] || [ -n "${TELEGRAM_BOT_TOKEN:-}" ] || [ -n "${TELEGRAM_CHANNEL_ID:-}" ]; then
+              TMP_ENV_FILE="${TARGET_DIR}/.runtime.env"
+              rm -f "${TMP_ENV_FILE}"
+              touch "${TMP_ENV_FILE}"
+              chmod 600 "${TMP_ENV_FILE}"
+
+              write_secret() {
+                KEY="$1"
+                VALUE="$2"
+                if [ -n "${VALUE}" ]; then
+                  printf '%s=%s\n' "${KEY}" "${VALUE}" >> "${TMP_ENV_FILE}"
+                fi
+              }
+
+              write_secret BOT_TOKEN "${BOT_TOKEN:-}"
+              write_secret OPENAI_API_KEY "${OPENAI_API_KEY:-}"
+              write_secret TELEGRAM_API_HASH "${TELEGRAM_API_HASH:-}"
+              write_secret TELEGRAM_API_ID "${TELEGRAM_API_ID:-}"
+              write_secret TELEGRAM_BOT_TOKEN "${TELEGRAM_BOT_TOKEN:-}"
+              write_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
             fi
-            #
+
+            CONTAINER_ENV_ARGS=""
+
+            if [ -n "${TMP_ENV_FILE}" ] && [ -s "${TMP_ENV_FILE}" ]; then
+              CONTAINER_ENV_ARGS="${CONTAINER_ENV_ARGS} --env-file ${TMP_ENV_FILE}"
+            fi
+
             # docker run -d \
             #   --name cron-github \
             #   --restart unless-stopped \
-            #   ${ENV_ARG} \
+            #   ${CONTAINER_ENV_ARGS} \
             #   "${IMAGE_REF}" \
             #   poetry run python -m crons.github_trends_cron
             #
             # docker run -d \
             #   --name cron-feeds \
             #   --restart unless-stopped \
-            #   ${ENV_ARG} \
+            #   ${CONTAINER_ENV_ARGS} \
             #   "${IMAGE_REF}" \
             #   poetry run python -m crons.feeds_cron
 
@@ -149,7 +179,11 @@ jobs:
             docker run -d \
               --name api \
               --restart unless-stopped \
-              ${ENV_ARG} \
+              ${CONTAINER_ENV_ARGS} \
               -p "${API_PORT}:8000" \
               "${IMAGE_REF}" \
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
+
+            if [ -n "${TMP_ENV_FILE}" ]; then
+              rm -f "${TMP_ENV_FILE}"
+            fi
