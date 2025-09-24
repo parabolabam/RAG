@@ -162,6 +162,7 @@ jobs:
             ENV_ARGS+=(-e "TELEGRAM_API_ID=${TELEGRAM_API_ID}")
             ENV_ARGS+=(-e "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}")
             ENV_ARGS+=(-e "TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}")
+            ENV_ARGS+=(-e "API_AUTH_TOKEN=${API_AUTH_TOKEN}")
             echo "Debug (deploy): ENV flags set for BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID"
 
             docker run -d \
