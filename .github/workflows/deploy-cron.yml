@@ -8,8 +8,9 @@ on:
 
 env:
   PROJECT_DIR: apps/senpy-ai-news-report
+  IMAGE_NAME: senpy-ai-news-report
   IMAGE_TAG: ${{ github.sha }}
-  IMAGE_REPO: ghcr.io/${{ toLower(github.repository_owner) }}/senpy-ai-news-report
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
 
 jobs:
   deploy:
@@ -34,19 +35,30 @@ jobs:
 
       - name: Build and push container images
         working-directory: ${{ env.PROJECT_DIR }}
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
           set -euo pipefail
+
+          OWNER_LOWER=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
           IMAGE_SHA="${IMAGE_REPO}:${IMAGE_TAG}"
           IMAGE_LATEST="${IMAGE_REPO}:latest"
 
           docker build -f Dockerfile.cron -t "${IMAGE_SHA}" .
-          docker tag "${IMAGE_SHA}"
+          docker tag "${IMAGE_SHA}" "${IMAGE_LATEST}"
           docker push "${IMAGE_SHA}"
+          docker push "${IMAGE_LATEST}"
 
-      - name: Daeploy API server
+          echo "IMAGE_REPO=${IMAGE_REPO}" >> "$GITHUB_ENV"
+
+      - name: Deploy on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_REPO: ${{ env.IMAGE_REPO }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
@@ -58,58 +70,61 @@ jobs:
           script: |
             set -euo pipefail
 
-            TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
-            ENV_FILE="$TARGET_DIR/.env"
+            OWNER_LOWER=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+            IMAGE_REPO="ghcr.io/${OWNER_LOWER}/${IMAGE_NAME}"
+            IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG}"
 
             if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+              echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
             else
               echo 'Warning: GHCR credentials not provided; attempting to pull using existing auth context.' >&2
             fi
 
-            IMAGE_REF="$IMAGE_REPO:$IMAGE_TAG"
-            if ! docker pull "$IMAGE_REF"; then
+            if ! docker pull "${IMAGE_REF}"; then
               echo "Falling back to latest image tag" >&2
-              docker pull "$IMAGE_REPO:latest"
-              IMAGE_REF="$IMAGE_REPO:latest"
+              docker pull "${IMAGE_REPO}:latest"
+              IMAGE_REF="${IMAGE_REPO}:latest"
             fi
 
             for svc in cron-github cron-feeds api; do
-              docker rm -f "$svc" >/dev/null 2>&1 || true
+              docker rm -f "${svc}" >/dev/null 2>&1 || true
             done
 
-            if [ ! -f "$ENV_FILE" ]; then
+            TARGET_DIR="${{ secrets.CRON_DEPLOY_PATH }}"
+            ENV_FILE="${TARGET_DIR}/.env"
+
+            if [ ! -f "${ENV_FILE}" ]; then
               echo 'Warning: .env file not found on remote host; containers may fail to start.' >&2
             fi
 
             RUN_ENV_ARGS=""
-            if [ -f "$ENV_FILE" ]; then
-              RUN_ENV_ARGS="--env-file $ENV_FILE"
+            if [ -f "${ENV_FILE}" ]; then
+              RUN_ENV_ARGS="--env-file ${ENV_FILE}"
             fi
 
-            # docker run -d \
-            #   --name cron-github \
-            #   --restart unless-stopped \
-            #   $RUN_ENV_ARGS \
-            #   "$IMAGE_REF" \
-            #   poetry run python -m crons.github_trends_cron
-            #
-            # docker run -d \
-            #   --name cron-feeds \
-            #   --restart unless-stopped \
-            #   $RUN_ENV_ARGS \
-            #   "$IMAGE_REF" \
-            #   poetry run python -m crons.feeds_cron
+            docker run -d \
+              --name cron-github \
+              --restart unless-stopped \
+              ${RUN_ENV_ARGS} \
+              "${IMAGE_REF}" \
+              poetry run python -m crons.github_trends_cron
 
-            API_PORT="$API_HOST_PORT"
-            if [ -z "$API_PORT" ]; then
+            docker run -d \
+              --name cron-feeds \
+              --restart unless-stopped \
+              ${RUN_ENV_ARGS} \
+              "${IMAGE_REF}" \
+              poetry run python -m crons.feeds_cron
+
+            API_PORT="${API_HOST_PORT}"
+            if [ -z "${API_PORT}" ]; then
               API_PORT=8000
             fi
 
             docker run -d \
               --name api \
               --restart unless-stopped \
-              $RUN_ENV_ARGS \
+              ${RUN_ENV_ARGS} \
               -p "${API_PORT}:8000" \
-              "$IMAGE_REF" \
+              "${IMAGE_REF}" \
               poetry run uvicorn senpy_ai_news_report.main:app --host 0.0.0.0 --port 8000
