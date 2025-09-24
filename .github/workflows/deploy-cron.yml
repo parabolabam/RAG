@@ -8,9 +8,8 @@ on:
 
 env:
   PROJECT_DIR: apps/senpy-ai-news-report
-  IMAGE_NAME: senpy-ai-news-report
   IMAGE_TAG: ${{ github.sha }}
-  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+  IMAGE_REPO: ghcr.io/${{ toLower(github.repository_owner) }}/senpy-ai-news-report
 
 jobs:
   deploy:
