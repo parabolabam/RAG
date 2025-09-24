@@ -109,7 +109,7 @@ jobs:
             check_secret TELEGRAM_API_ID "${TELEGRAM_API_ID:-}"
             check_secret TELEGRAM_BOT_TOKEN "${TELEGRAM_BOT_TOKEN:-}"
             check_secret TELEGRAM_CHANNEL_ID "${TELEGRAM_CHANNEL_ID:-}"
-            check_secret API_AUTH_TOKEN ${API_AUTH_TOKEN:-}"
+            check_secret API_AUTH_TOKEN "${API_AUTH_TOKEN:-}"
 
             if ! command -v docker >/dev/null 2>&1; then
               echo 'Docker binary not found on remote host.' >&2
