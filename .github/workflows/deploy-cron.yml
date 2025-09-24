@@ -62,8 +62,8 @@ jobs:
       - name: Deploy API on remote host
         uses: appleboy/ssh-action@v1.0.3
         env:
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
           API_HOST_PORT: ${{ secrets.API_HOST_PORT }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
